@@ -1,4 +1,4 @@
-  import usart
+import usart
 import time
 
 port_name = "/dev/serial0"
