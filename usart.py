@@ -1,3 +1,4 @@
+import binascii
 import serial
 import crc
 import numpy as np
@@ -26,12 +27,7 @@ class CommunicationProtocol():
         self.Send_Motor()
         Rx = self.Receive_Motor()
 
-        BMode = Rx[1]
-        ECurru = (Rx[2].astype(np.int8) << 8) + Rx[3]
-        BSpeed = (Rx[4].astype(np.int8) << 8) + Rx[5]
-        Position = (Rx[6].astype(np.int8) << 8) + Rx[7]
-        ErrCode = Rx[8]
-        return BMode, ECurru, BSpeed, Position, ErrCode
+        return self.Parse_Received_Data(Rx)
 
     def Get_Motor(self, ID):
         ID = np.array(ID).astype(np.uint8)
@@ -41,13 +37,7 @@ class CommunicationProtocol():
         self.Send_Motor()
         Rx = self.Receive_Motor()
 
-        BMode = Rx[1]
-        ECurru = (Rx[2].astype(np.int8) << 8) + Rx[3]
-        BSpeed = (Rx[4].astype(np.int8) << 8) + Rx[5]
-        Temp = Rx[6]
-        Position = Rx[7]
-        ErrCode = Rx[8]
-        return BMode, ECurru, BSpeed, Temp, Position, ErrCode
+        return self.Parse_Received_Data(Rx)
 
     def Set_MotorMode(self, Mode, ID):
         self._Tx = np.array([ID, 0xA0, 0, 0, 0, 0, 0, 0, 0, Mode], dtype=np.uint8)
@@ -64,12 +54,7 @@ class CommunicationProtocol():
         self.Send_Motor()
         Rx = self.Receive_Motor()
 
-        BMode = Rx[1]
-        ECurru = (Rx[2].astype(np.int8) << 8) + Rx[3]
-        BSpeed = (Rx[4].astype(np.int8) << 8) + Rx[5]
-        Position = (Rx[6].astype(np.int8) << 8) + Rx[7]
-        ErrCode = Rx[8]
-        return BMode, ECurru, BSpeed, Position, ErrCode
+        return self.Parse_Received_Data(Rx)
 
     def Send_Motor(self):
         self.s.write(self._Tx.tobytes())
@@ -80,5 +65,40 @@ class CommunicationProtocol():
         Rx = np.frombuffer(Rx, dtype=np.uint8)
         if Rx.size == 0:
             raise Exception("No Communication!")
+        
+        # 受信サイズと受信データをコンソールに出力
+        print(f"Received size: {Rx.size} / Received data: {' '.join([binascii.hexlify(Rx)[i:i+2].decode() for i in range(0, len(binascii.hexlify(Rx)), 2)])}")
 
         return Rx
+    
+    def Parse_Received_Data(self, rx_):
+        # rx_[0]:ID
+
+        if 2 <= rx_.size:
+            mode = rx_[1]
+        else:
+            mode = 0xFF
+
+        if 4 <= rx_.size:
+            current = (rx_[2].astype(np.int8) << 8) + rx_[3]
+        else:
+            current = 0xFFFF
+
+        if 6 <= rx_.size:
+            velocity = (rx_[4].astype(np.int8) << 8) + rx_[5]
+        else:
+            velocity = 0xFFFF
+
+        if 8 <= rx_.size:
+            angle = (rx_[6].astype(np.int8) << 8) + rx_[7]
+        else:
+            angle = 0xFFFF
+
+        if 9 <= rx_.size:
+            fault = rx_[8]
+        else:
+            fault = 0xFF
+        
+        # rx_[9]:CRC
+            
+        return mode, current, velocity, angle, fault
